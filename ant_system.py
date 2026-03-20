@@ -39,10 +39,22 @@ class AntSystem:
         results_cmp_delta: float = 0.000_000_001,
         seed: float | int | None = None,
         path_len_precision: int = 9,
-        echo: bool = False,
         save_all_paths: bool = False,
-    ) -> tuple[int, float, list[Edge], list[Edge]]:
-        """Вернет: количество итераций, время работы, лучшие пути за все и за последнюю итерацию"""
+    ) -> tuple[int, float, list[Edge], list[Edge], list[list[tuple[list[Edge], float]]] | None]:
+        """
+        Поиск кратчайшего пути между вершинами графа
+        :param start: начальная вершина
+        :param goal: целевая вершина
+        :param graph: граф
+        :param max_iteration: критерий останова: количество итераций
+        :param max_same_results_number: критерий останова: повторяющееся значение
+        :param reinit_pheromones: флаг начальной инициализации феромонов
+        :param results_cmp_delta: погрешность сравнения длин результирующих путей
+        :param seed: начальное состояние ГСЧ
+        :param path_len_precision: точность округления длин путей (знаков после точки)
+        :param save_all_paths:
+        :return:
+        """
         random.seed(seed)
         if reinit_pheromones:
             graph.set_random_pheromones(self.max_init_pheromone)
@@ -66,7 +78,7 @@ class AntSystem:
                 local_best_path,
                 local_best_path_len,
                 iteration_paths
-            ) = self.run_ants(graph, start, goal, iteration_id, path_len_precision, echo, save_all_paths)
+            ) = self.run_ants(graph, start, goal, iteration_id, path_len_precision, save_all_paths)
 
             if save_all_paths:
                 paths.append(iteration_paths)
@@ -92,11 +104,11 @@ class AntSystem:
             iteration_id += 1
 
         duration = time.time() - time_start
-        return iteration_id, duration, global_best_path, local_best_path
+        return iteration_id, duration, global_best_path, local_best_path, paths
 
     def run_ants(
         self, graph: Graph, start_node: int, goal_node: int, iteration_id: int,
-            path_len_precision: int, echo: bool = False, save_all_paths: bool = False
+            path_len_precision: int, save_all_paths: bool = False
     ) -> tuple[
         dict[Edge, dict[float, int]],
         list[Edge],
@@ -139,12 +151,6 @@ class AntSystem:
 
             if save_all_paths:
                 paths.append((ant_path, ant_path_len))
-            if echo:
-                print(
-                    iteration_id,
-                    ant, ant_path_len, [start_node] + [edge.dst for edge in ant_path],
-                    sep="\t"
-                )
 
             # лучший на итерации?
             if local_best_path_len == 0 or 0 < ant_path_len < local_best_path_len:
