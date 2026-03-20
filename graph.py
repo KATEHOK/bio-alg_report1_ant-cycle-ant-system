@@ -46,10 +46,10 @@ class Edge:
             self.src == other.dst and self.dst == other.src
         ])
 
-    def __hash__(self) -> tuple[int, int]:
+    def __hash__(self) -> int:
         if self.src <= self.dst:
-            return self.src, self.dst
-        return self.dst, self.src
+            return id((self.src, self.dst))
+        return id((self.dst, self.src))
 
     def get_another_node(self, node: int):
         return self.src if self.dst == node else self.dst

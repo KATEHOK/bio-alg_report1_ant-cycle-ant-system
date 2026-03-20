@@ -30,19 +30,22 @@ class AntSystem:
         self.max_init_pheromone = max_init_pheromone
 
     def search_path(self,
-            start: int,
-            goal: int,
-            graph: Graph,
-            max_iteration: int,
-            max_same_results_number: int,
-            results_cmp_delta: float = 0.000_000_001,
-            seed: float | int | None = None,
-            path_len_precision: int = 9
-        ) -> tuple[int, float, list[Edge], list[Edge]]:
+        start: int,
+        goal: int,
+        graph: Graph,
+        max_iteration: int,
+        max_same_results_number: int,
+        reinit_pheromones: bool = True,
+        results_cmp_delta: float = 0.000_000_001,
+        seed: float | int | None = None,
+        path_len_precision: int = 9,
+        echo: bool = False,
+        save_all_paths: bool = False,
+    ) -> tuple[int, float, list[Edge], list[Edge]]:
         """Вернет: количество итераций, время работы, лучшие пути за все и за последнюю итерацию"""
         random.seed(seed)
-
-        graph.set_random_pheromones(self.max_init_pheromone)
+        if reinit_pheromones:
+            graph.set_random_pheromones(self.max_init_pheromone)
         iteration_id = 0
         same_results_counter = 0
 
@@ -51,6 +54,9 @@ class AntSystem:
         local_best_path: list[Edge] = []
         local_best_path_len: float = 0
 
+        # paths[iteration_id][ant] : (path, path_len)
+        paths: list[list[tuple[list[Edge], float]]] | None = [] if save_all_paths else None
+
         time_start = time.time()
 
         while iteration_id < max_iteration and same_results_counter < max_same_results_number:
@@ -58,8 +64,12 @@ class AntSystem:
             (
                 visited_edges_counter,
                 local_best_path,
-                local_best_path_len
-            ) = self.run_ants(graph, start, goal, path_len_precision)
+                local_best_path_len,
+                iteration_paths
+            ) = self.run_ants(graph, start, goal, iteration_id, path_len_precision, echo, save_all_paths)
+
+            if save_all_paths:
+                paths.append(iteration_paths)
 
             # испарение феромона
             self.evaporate_pheromone(graph)
@@ -85,15 +95,19 @@ class AntSystem:
         return iteration_id, duration, global_best_path, local_best_path
 
     def run_ants(
-        self, graph: Graph, start_node: int, goal_node: int, path_len_precision: int
+        self, graph: Graph, start_node: int, goal_node: int, iteration_id: int,
+            path_len_precision: int, echo: bool = False, save_all_paths: bool = False
     ) -> tuple[
         dict[Edge, dict[float, int]],
         list[Edge],
-        float
+        float,
+        list[tuple[list[Edge], float]] | None
     ]:
         visited_edges_counter: dict[Edge, dict[float, int]] = {}    # {edge: {path_len: amount, ...}, ...}
         local_best_path = []
         local_best_path_len = 0
+
+        paths: list[tuple[list[Edge], float]] | None = [] if save_all_paths else None
 
         for ant in range(self.ants_number):
             ant_path: list[Edge] = []
@@ -123,11 +137,20 @@ class AntSystem:
                         ant_path_len, 0
                     ) + 1
 
+            if save_all_paths:
+                paths.append((ant_path, ant_path_len))
+            if echo:
+                print(
+                    iteration_id,
+                    ant, ant_path_len, [start_node] + [edge.dst for edge in ant_path],
+                    sep="\t"
+                )
+
             # лучший на итерации?
             if local_best_path_len == 0 or 0 < ant_path_len < local_best_path_len:
                 local_best_path = ant_path
                 local_best_path_len = ant_path_len
-        return visited_edges_counter, local_best_path, local_best_path_len
+        return visited_edges_counter, local_best_path, local_best_path_len, paths
 
     def choose_next_node(self, graph: Graph, cur: int, tabu_list: set[int]) -> int | None:
         candidates: dict[Edge, dict[str, float]] = {}
